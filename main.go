@@ -3,16 +3,17 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/opsgenie/kubernetes-event-exporter/pkg/exporter"
-	"github.com/opsgenie/kubernetes-event-exporter/pkg/kube"
-	"github.com/rs/zerolog"
-	"github.com/rs/zerolog/log"
-	"gopkg.in/yaml.v2"
 	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
+
+	"github.com/opsgenie/kubernetes-event-exporter/pkg/exporter"
+	"github.com/opsgenie/kubernetes-event-exporter/pkg/kube"
+	"github.com/rs/zerolog"
+	"github.com/rs/zerolog/log"
+	"gopkg.in/yaml.v2"
 )
 
 var (
@@ -67,7 +68,7 @@ func main() {
 	}
 
 	engine := exporter.NewEngine(&cfg, &exporter.ChannelBasedReceiverRegistry{})
-	w := kube.NewEventWatcher(kubeconfig, cfg.Namespace, cfg.ThrottlePeriod, engine.OnEvent)
+	w := kube.NewEventWatcher(kubeconfig, cfg.Namespace, cfg.ThrottlePeriod, engine.OnEvent, cfg.KubeCache)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	leaderLost := make(chan bool)

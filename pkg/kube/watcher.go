@@ -16,24 +16,35 @@ type EventHandler func(event *EnhancedEvent)
 type EventWatcher struct {
 	informer        cache.SharedInformer
 	stopper         chan struct{}
-	labelCache      *LabelCache
-	annotationCache *AnnotationCache
+	labelCache      LabelRetriever
+	annotationCache AnnotationRetriever
 	fn              EventHandler
 	throttlePeriod  time.Duration
 }
 
-func NewEventWatcher(config *rest.Config, namespace string, throttlePeriod int64, fn EventHandler) *EventWatcher {
+func NewEventWatcher(config *rest.Config, namespace string, throttlePeriod int64, fn EventHandler, useCache bool) *EventWatcher {
 	clientset := kubernetes.NewForConfigOrDie(config)
 	factory := informers.NewSharedInformerFactoryWithOptions(clientset, 0, informers.WithNamespace(namespace))
 	informer := factory.Core().V1().Events().Informer()
 
+	var labelRetriever LabelRetriever
+	var annotationRetriever AnnotationRetriever
+
+	if useCache {
+		labelRetriever = NewLabelCache(config)
+		annotationRetriever = NewAnnotationCache(config)
+	} else {
+		labelRetriever = NewLabelWithoutCache(config)
+		annotationRetriever = NewAnnotationWithoutCache(config)
+	}
+
 	watcher := &EventWatcher{
 		informer:        informer,
 		stopper:         make(chan struct{}),
-		labelCache:      NewLabelCache(config),
-		annotationCache: NewAnnotationCache(config),
+		labelCache:      labelRetriever,
+		annotationCache: annotationRetriever,
 		fn:              fn,
-		throttlePeriod:  time.Second*time.Duration(throttlePeriod),
+		throttlePeriod:  time.Second * time.Duration(throttlePeriod),
 	}
 
 	informer.AddEventHandler(watcher)
@@ -70,7 +81,7 @@ func (e *EventWatcher) onEvent(event *corev1.Event) {
 	}
 	ev.Event.ManagedFields = nil
 
-	labels, err := e.labelCache.GetLabelsWithCache(&event.InvolvedObject)
+	labels, err := e.labelCache.GetLabels(&event.InvolvedObject)
 	if err != nil {
 		log.Error().Err(err).Msg("Cannot list labels of the object")
 		// Ignoring error, but log it anyways
@@ -79,7 +90,7 @@ func (e *EventWatcher) onEvent(event *corev1.Event) {
 		ev.InvolvedObject.ObjectReference = *event.InvolvedObject.DeepCopy()
 	}
 
-	annotations, err := e.annotationCache.GetAnnotationsWithCache(&event.InvolvedObject)
+	annotations, err := e.annotationCache.GetAnnotations(&event.InvolvedObject)
 	if err != nil {
 		log.Error().Err(err).Msg("Cannot list annotations of the object")
 	} else {
