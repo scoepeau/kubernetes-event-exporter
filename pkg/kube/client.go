@@ -28,8 +28,8 @@ func GetKubernetesConfig() (*rest.Config, error) {
 	}
 
 	if err == nil {
-		config.Burst = 1000
-		config.QPS = 500
+		config.Burst = 200
+		config.QPS = 100
 		config.RateLimiter = flowcontrol.NewTokenBucketRateLimiter(config.QPS, config.Burst)
 		return config, nil
 	}
